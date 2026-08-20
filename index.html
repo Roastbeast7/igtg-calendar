@@ -1399,6 +1399,15 @@
     runSearch();
     searchInput.focus();
   });
+
+  document.body.addEventListener('click', (e)=>{
+    const inContent = e.target.closest('.wrap, .overlay, .toolbar, .rail, .jump-today');
+    if (!inContent && searchInput.value){
+      searchInput.value = '';
+      runSearch();
+    }
+  });
+
   document.getElementById('jumpToday').addEventListener('click', ()=>{
     const el = document.getElementById(`month-${today.getFullYear()}-${today.getMonth()}`);
     if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
