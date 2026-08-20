@@ -1152,27 +1152,37 @@
         }
       });
     });
-    matches.sort((a,b) => a.key.localeCompare(b.key));
 
+    // Highlight every day any matching event touches, even though the results
+    // list below collapses each event down to a single row.
     const matchSet = new Set(matches.map(m => m.key));
-
     document.querySelectorAll('.day:not(.pad)').forEach(el=>{
       const isMatch = matchSet.has(el.dataset.date);
       el.classList.toggle('match', isMatch);
       el.classList.toggle('dimmed', !isMatch);
     });
 
-    if (!matches.length){
+    // Collapse to one result per unique event id (a multi-day event is stored
+    // once per day it spans, so without this it'd show up once per day here).
+    const uniqueById = new Map();
+    matches.forEach(m => { if (!uniqueById.has(m.ev.id)) uniqueById.set(m.ev.id, m.ev); });
+    const uniqueEvents = [...uniqueById.values()].sort((a,b) => (a.startDate||'').localeCompare(b.startDate||''));
+
+    if (!uniqueEvents.length){
       searchResults.innerHTML = `<div class="search-empty">No events match "${escapeHtml(searchInput.value.trim())}"</div>`;
       return;
     }
 
-    searchResults.innerHTML = matches.map(m=>`
-      <div class="search-result" data-date="${m.key}">
-        <span class="sr-title">${escapeHtml(m.ev.title || 'Untitled event')}</span>
-        <span class="sr-date">${formatPretty(m.key)}</span>
-      </div>
-    `).join('');
+    searchResults.innerHTML = uniqueEvents.map(ev=>{
+      const start = ev.startDate, end = ev.endDate || ev.startDate;
+      const dateLabel = (end && end !== start) ? `${formatPretty(start)} – ${formatPretty(end)}` : formatPretty(start);
+      return `
+        <div class="search-result" data-date="${start}">
+          <span class="sr-title">${escapeHtml(ev.title || 'Untitled event')}</span>
+          <span class="sr-date">${dateLabel}</span>
+        </div>
+      `;
+    }).join('');
 
     searchResults.querySelectorAll('.search-result').forEach(el=>{
       el.addEventListener('click', ()=>{
