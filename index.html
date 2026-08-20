@@ -123,8 +123,8 @@
   .search-result .sr-date{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); }
   .search-empty{ padding:14px; font-size:12px; color:var(--muted); text-align:center; }
 
-  .day.dimmed{ opacity:0.25; }
-  .day.match{ border-color:var(--blue); box-shadow:0 0 0 2px var(--blue), 0 0 12px var(--blue-soft); z-index:1; }
+  .daynum-cell.dimmed{ opacity:0.25; }
+  .daynum-cell.match{ box-shadow:0 0 0 2px var(--blue), 0 0 8px var(--blue-soft); z-index:1; position:relative; }
 
   /* ---------- Layout ---------- */
   .wrap{max-width:760px; margin:0 auto; padding:0 20px;}
@@ -183,58 +183,39 @@
     color:var(--muted-2); letter-spacing:1px;
   }
 
-  .days-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .month-grid{ display:flex; flex-direction:column; }
 
-  .day{
-    position:relative;
-    aspect-ratio:1/1;
-    background:var(--panel-2);
-    border:2px solid var(--line);
-    border-radius:3px;
-    color:var(--muted);
-    font-family:'JetBrains Mono',monospace;
-    font-weight:500;
-    font-size:12px;
-    display:flex; align-items:flex-start; justify-content:flex-start;
-    padding:5px;
-    cursor:pointer;
-    transition:border-color .15s ease, transform .1s ease, box-shadow .15s ease;
-  }
-  .day:hover{ border-color:var(--blue); transform:translateY(-1px); }
-  .day:focus-visible{ outline:2px solid var(--yellow); outline-offset:1px; }
-  .day.pad{ visibility:hidden; pointer-events:none; }
-  .day.today{ border-color:var(--yellow); box-shadow:0 0 0 1px var(--yellow) inset, 0 0 10px var(--yellow-soft); }
-  .day.today .daynum{ color:var(--yellow); font-weight:700;}
-  .day.future{ opacity:0.6; }
+  .week-row{ border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:6px; }
+  .week-row:last-child{ border-bottom:none; margin-bottom:0; }
 
-  .day.has-event{ background:var(--yellow-soft); border-color:var(--yellow); color:var(--paper); }
-  .day.future.has-event{ opacity:1; }
+  .week-daynums{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:4px; }
+  .daynum-cell{
+    background:none; border:none; color:var(--paper);
+    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px;
+    text-align:left; padding:3px 4px; cursor:pointer; border-radius:3px;
+  }
+  .daynum-cell:hover{ background:var(--panel-2); }
+  .daynum-cell.outside{ color:var(--muted-2); font-weight:400; }
+  .daynum-cell.today{ color:var(--yellow); background:var(--yellow-soft); font-weight:800; }
+  body:not(.editor-mode) .daynum-cell:not(.has-event){ cursor:default; }
+  body:not(.editor-mode) .daynum-cell:not(.has-event):hover{ background:none; }
 
-  body:not(.editor-mode) .day:not(.has-event):not(.pad){ cursor:default; }
-  body:not(.editor-mode) .day:not(.has-event):not(.pad):hover{ border-color:var(--line); transform:none; }
-
-  .marker{
-    position:absolute; bottom:3px; right:3px;
-    width:16px; height:16px;
-    color:#181200;
-    background:var(--yellow);
-    border:1.5px solid #05060a;
-    border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    padding:2px;
+  .week-bars{
+    display:grid; grid-template-columns:repeat(7,1fr); gap:3px 6px;
   }
-  .marker svg{ width:100%; height:100%; display:block; }
-
-  .markers{
-    position:absolute; bottom:4px; right:4px; left:4px;
-    display:flex; gap:3px; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  .event-bar{
+    border:1.5px solid #05060a; color:#0a0c14; font-weight:700;
+    font-family:'Rubik',sans-serif; font-size:10px; text-align:left;
+    padding:2px 6px; height:20px; line-height:16px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    cursor:pointer; border-left-width:1.5px; border-right-width:1.5px;
   }
-  .mdot{
-    width:11px; height:11px; border-radius:50%; border:1.5px solid #05060a; flex-shrink:0;
-  }
-  .mmore{
-    font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--muted); line-height:1;
-  }
+  .event-bar:hover{ filter:brightness(1.12); }
+  .event-bar:not(.bar-start){ border-left:none; margin-left:-6px; padding-left:8px; }
+  .event-bar:not(.bar-end){ border-right:none; margin-right:-6px; }
+  .event-bar.bar-start{ border-radius:10px 0 0 10px; }
+  .event-bar.bar-end{ border-radius:0 10px 10px 0; }
+  .event-bar.bar-start.bar-end{ border-radius:10px; }
 
   .event-card{
     position:relative;
@@ -595,12 +576,85 @@
     }));
   }
 
-  function dotsHtml(events){
-    const cap = 3;
-    const shown = events.slice(0, cap);
-    let html = shown.map(e => `<span class="mdot" style="background:${getCategory(e.category).color};"></span>`).join('');
-    if (events.length > cap) html += `<span class="mmore">+${events.length - cap}</span>`;
-    return html;
+  function buildWeeksForMonth(y, m){
+    const firstDay = new Date(y, m, 1);
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const startWeekday = firstDay.getDay(); // 0=Sun, matches WEEKDAYS header order
+    const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+    const weeks = [];
+    let cur = new Date(y, m, 1 - startWeekday);
+    for (let w=0; w<totalCells/7; w++){
+      const week = [];
+      for (let d=0; d<7; d++){
+        week.push({
+          key: dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate()),
+          inMonth: cur.getMonth() === m,
+          dayNum: cur.getDate()
+        });
+        cur.setDate(cur.getDate()+1);
+      }
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
+  function computeWeekBars(week){
+    const weekStart = week[0].key, weekEnd = week[6].key;
+    const seen = new Map();
+    week.forEach(cell => {
+      (eventIndex[cell.key] || []).forEach(ev => { if (!seen.has(ev.id)) seen.set(ev.id, ev); });
+    });
+    const segments = [...seen.values()].map(ev=>{
+      const segStart = ev.startDate > weekStart ? ev.startDate : weekStart;
+      const segEnd = ev.endDate < weekEnd ? ev.endDate : weekEnd;
+      const colStart = week.findIndex(c => c.key === segStart) + 1;
+      const colEndIdx = week.findIndex(c => c.key === segEnd);
+      return {
+        ev, colStart, colSpan: colEndIdx - (colStart-1) + 1,
+        isStart: segStart === ev.startDate,
+        isEnd: segEnd === ev.endDate,
+        clickKey: segStart
+      };
+    });
+    segments.sort((a,b) => a.colStart - b.colStart || (a.ev.title||'').localeCompare(b.ev.title||''));
+    const laneEnds = [];
+    segments.forEach(seg=>{
+      let lane = laneEnds.findIndex(endCol => endCol < seg.colStart);
+      if (lane === -1){ lane = laneEnds.length; laneEnds.push(0); }
+      laneEnds[lane] = seg.colStart + seg.colSpan - 1;
+      seg.lane = lane;
+    });
+    return { segments, laneCount: Math.max(laneEnds.length, 1) };
+  }
+
+  function renderWeekHtml(week){
+    const { segments, laneCount } = computeWeekBars(week);
+
+    const daynumsHtml = week.map(cell=>{
+      const cellDate = keyToDate(cell.key);
+      const isToday = isSameDay(cellDate, today);
+      const hasEvent = eventDates.has(cell.key);
+      return `<button type="button" class="daynum-cell ${isToday?'today':''} ${!cell.inMonth?'outside':''} ${hasEvent?'has-event':''}"
+        data-date="${cell.key}" aria-label="${cell.key}">${cell.dayNum}</button>`;
+    }).join('');
+
+    const barsHtml = segments.map(seg=>{
+      const cat = getCategory(seg.ev.category || '');
+      const cls = ['event-bar'];
+      if (seg.isStart) cls.push('bar-start');
+      if (seg.isEnd) cls.push('bar-end');
+      const title = escapeHtml(seg.ev.title || 'Untitled event');
+      return `<button type="button" class="${cls.join(' ')}" data-date="${seg.clickKey}"
+        style="grid-column:${seg.colStart} / span ${seg.colSpan}; grid-row:${seg.lane+1}; background:${cat.color};"
+        title="${title}">${title}</button>`;
+    }).join('');
+
+    return `
+      <div class="week-row">
+        <div class="week-daynums">${daynumsHtml}</div>
+        <div class="week-bars" style="grid-template-rows:repeat(${laneCount}, 20px);">${barsHtml}</div>
+      </div>
+    `;
   }
 
   let currentMonths = [];
@@ -642,27 +696,10 @@
     let html = '';
     let lastYear = null;
     months.forEach(({y,m})=>{
-      const firstDay = new Date(y,m,1);
-      const startWeekday = firstDay.getDay();
-      const daysInMonth = new Date(y,m+1,0).getDate();
       const anchorAttr = (y !== lastYear) ? `data-year-anchor="${y}"` : '';
       lastYear = y;
 
-      let dayCells = '';
-      for (let i=0;i<startWeekday;i++){ dayCells += `<div class="day pad"></div>`; }
-      for (let d=1; d<=daysInMonth; d++){
-        const cellDate = new Date(y,m,d);
-        const key = dateKey(y,m,d);
-        const isToday = isSameDay(cellDate, today);
-        const isFuture = cellDate > today;
-        const dayEvents = eventIndex[key] || [];
-        const hasEvent = dayEvents.length > 0;
-        dayCells += `<button class="day ${isToday?'today':''} ${isFuture?'future':''} ${hasEvent?'has-event':''}"
-          data-date="${key}" aria-label="${MONTH_NAMES[m]} ${d}, ${y}">
-          <span class="daynum">${d}</span>
-          ${hasEvent ? `<div class="markers">${dotsHtml(dayEvents)}</div>` : ''}
-        </button>`;
-      }
+      const weeksHtml = buildWeeksForMonth(y, m).map(renderWeekHtml).join('');
 
       html += `
       <section class="reel" id="month-${y}-${m}" ${anchorAttr}>
@@ -672,12 +709,12 @@
           <span class="reel-count" data-count-for="${y}-${m}"></span>
         </div>
         <div class="weekdays">${WEEKDAYS.map(w=>`<span>${w}</span>`).join('')}</div>
-        <div class="days-grid">${dayCells}</div>
+        <div class="month-grid">${weeksHtml}</div>
       </section>`;
     });
     calEl.innerHTML = html;
 
-    calEl.querySelectorAll('.day:not(.pad)').forEach(btn=>{
+    calEl.querySelectorAll('.daynum-cell, .event-bar').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const key = btn.dataset.date;
         if (!isEditor && !eventDates.has(key)) return; // viewers can't create new entries
@@ -831,8 +868,8 @@
         eventDates.delete(dk);
         delete eventIndex[dk];
       }
-      refreshDayCell(dk);
     }
+    renderCalendar(currentMonths);
     if (!deferPersist) await persistIndex();
   }
 
@@ -856,8 +893,8 @@
         eventDates.delete(dk);
         delete eventIndex[dk];
       }
-      refreshDayCell(dk);
     }
+    renderCalendar(currentMonths);
     if (!deferPersist) await persistIndex();
   }
 
@@ -1112,27 +1149,6 @@
     });
   }
 
-  function refreshDayCell(key){
-    const cell = document.querySelector(`.day[data-date="${key}"]`);
-    if (!cell) return;
-    const dayEvents = eventIndex[key] || [];
-    const has = dayEvents.length > 0;
-    cell.classList.toggle('has-event', has);
-    let markersEl = cell.querySelector('.markers');
-    if (has){
-      const html = dotsHtml(dayEvents);
-      if (!markersEl){
-        cell.insertAdjacentHTML('beforeend', `<div class="markers">${html}</div>`);
-      } else {
-        markersEl.innerHTML = html;
-      }
-    } else if (markersEl){
-      markersEl.remove();
-    }
-    const [y,m] = key.split('-').map(Number);
-    updateMonthCounts([{y, m:m-1}]);
-  }
-
   function escapeHtml(str){
     const div = document.createElement('div');
     div.textContent = str;
@@ -1146,7 +1162,7 @@
 
     // Reset highlighting when search is cleared
     if (!query){
-      document.querySelectorAll('.day.match, .day.dimmed').forEach(el=>{
+      document.querySelectorAll('.daynum-cell.match, .daynum-cell.dimmed').forEach(el=>{
         el.classList.remove('match','dimmed');
       });
       searchResults.innerHTML = '';
@@ -1165,7 +1181,7 @@
     // Highlight every day any matching event touches, even though the results
     // list below collapses each event down to a single row.
     const matchSet = new Set(matches.map(m => m.key));
-    document.querySelectorAll('.day:not(.pad)').forEach(el=>{
+    document.querySelectorAll('.daynum-cell').forEach(el=>{
       const isMatch = matchSet.has(el.dataset.date);
       el.classList.toggle('match', isMatch);
       el.classList.toggle('dimmed', !isMatch);
@@ -1196,7 +1212,7 @@
     searchResults.querySelectorAll('.search-result').forEach(el=>{
       el.addEventListener('click', ()=>{
         const key = el.dataset.date;
-        const cell = document.querySelector(`.day[data-date="${key}"]`);
+        const cell = document.querySelector(`.daynum-cell[data-date="${key}"]`);
         if (cell) cell.scrollIntoView({behavior:'smooth', block:'center'});
         openDay(key);
       });
