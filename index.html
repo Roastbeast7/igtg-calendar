@@ -127,7 +127,7 @@
   .daynum-cell.match{ box-shadow:0 0 0 2px var(--blue), 0 0 8px var(--blue-soft); z-index:1; position:relative; }
 
   /* ---------- Layout ---------- */
-  .wrap{max-width:760px; margin:0 auto; padding:0 20px;}
+  .wrap{max-width:1040px; margin:0 auto; padding:0 20px;}
 
   /* ---------- Year rail (quick nav) ---------- */
   .rail{
@@ -146,53 +146,53 @@
   /* ---------- Reel (month block) ---------- */
   .reel{
     position:relative;
-    margin:44px 0 36px;
+    margin:52px 0 42px;
     background:var(--panel);
     border:3px solid #05060a;
     border-radius:2px;
-    padding:26px 26px 22px;
-    box-shadow:7px 7px 0 var(--blue);
+    padding:30px 30px 26px;
+    box-shadow:8px 8px 0 var(--blue);
   }
   .reel-label{
-    display:flex; align-items:center; gap:12px; margin-bottom:22px;
+    display:flex; align-items:center; gap:14px; margin-bottom:26px;
     padding-bottom:0; border-bottom:none;
   }
   .reel-month{
-    font-family:'Bangers', cursive; font-size:22px; letter-spacing:2px; color:#141000;
+    font-family:'Bangers', cursive; font-size:27px; letter-spacing:2px; color:#141000;
     background:var(--yellow);
-    padding:6px 18px 6px 14px;
+    padding:7px 22px 7px 16px;
     position:relative;
     clip-path:polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%);
     border:2px solid #05060a;
-    margin-left:-29px;
+    margin-left:-33px;
   }
   .reel-year{
-    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; color:var(--paper);
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--paper);
     background:var(--blue); border:2px solid #05060a; border-radius:50%;
-    width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
   }
   .reel-count{
-    margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px;
+    margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:12px;
     color:var(--muted); letter-spacing:0.5px;
   }
 
-  .weekdays{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; }
+  .weekdays{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:8px; }
   .weekdays span{
-    font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; text-align:center;
+    font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; text-align:center;
     color:var(--muted-2); letter-spacing:1px;
   }
 
   .month-grid{ display:flex; flex-direction:column; }
 
-  .week-row{ border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:6px; }
+  .week-row{ border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:8px; }
   .week-row:last-child{ border-bottom:none; margin-bottom:0; }
 
-  .week-daynums{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:4px; }
+  .week-daynums{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:5px; }
   .daynum-cell{
     background:none; border:none; color:var(--paper);
-    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px;
-    text-align:left; padding:3px 4px; cursor:pointer; border-radius:3px;
+    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:15px;
+    text-align:left; padding:4px 5px; cursor:pointer; border-radius:3px;
   }
   .daynum-cell:hover{ background:var(--panel-2); }
   .daynum-cell.outside{ color:var(--muted-2); font-weight:400; }
@@ -201,21 +201,21 @@
   body:not(.editor-mode) .daynum-cell:not(.has-event):hover{ background:none; }
 
   .week-bars{
-    display:grid; grid-template-columns:repeat(7,1fr); gap:3px 6px;
+    display:grid; grid-template-columns:repeat(7,1fr); gap:4px 8px;
   }
   .event-bar{
     border:1.5px solid #05060a; color:#0a0c14; font-weight:700;
-    font-family:'Rubik',sans-serif; font-size:10px; text-align:left;
-    padding:2px 6px; height:20px; line-height:16px;
+    font-family:'Rubik',sans-serif; font-size:12px; text-align:left;
+    padding:3px 8px; height:26px; line-height:20px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     cursor:pointer; border-left-width:1.5px; border-right-width:1.5px;
   }
   .event-bar:hover{ filter:brightness(1.12); }
-  .event-bar:not(.bar-start){ border-left:none; margin-left:-6px; padding-left:8px; }
-  .event-bar:not(.bar-end){ border-right:none; margin-right:-6px; }
-  .event-bar.bar-start{ border-radius:10px 0 0 10px; }
-  .event-bar.bar-end{ border-radius:0 10px 10px 0; }
-  .event-bar.bar-start.bar-end{ border-radius:10px; }
+  .event-bar:not(.bar-start){ border-left:none; margin-left:-8px; padding-left:10px; }
+  .event-bar:not(.bar-end){ border-right:none; margin-right:-8px; }
+  .event-bar.bar-start{ border-radius:13px 0 0 13px; }
+  .event-bar.bar-end{ border-radius:0 13px 13px 0; }
+  .event-bar.bar-start.bar-end{ border-radius:13px; }
 
   .event-card{
     position:relative;
@@ -305,11 +305,11 @@
 
   /* ---------- Categories ---------- */
   .legend{
-    display:flex; gap:14px; flex-wrap:wrap; margin-top:12px;
-    font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted);
+    display:flex; gap:18px; flex-wrap:wrap; margin-top:14px;
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--paper);
   }
-  .legend-item{ display:flex; align-items:center; gap:5px; }
-  .legend-dot{ width:9px; height:9px; border-radius:50%; border:1px solid #05060a; display:inline-block; }
+  .legend-item{ display:flex; align-items:center; gap:7px; }
+  .legend-dot{ width:13px; height:13px; border-radius:50%; border:1.5px solid #05060a; display:inline-block; }
 
   .cat-picker{ display:flex; gap:8px; flex-wrap:wrap; }
   .cat-chip{
@@ -676,7 +676,7 @@
     return `
       <div class="week-row">
         <div class="week-daynums">${daynumsHtml}</div>
-        <div class="week-bars" style="grid-template-rows:repeat(${laneCount}, 20px);">${barsHtml}</div>
+        <div class="week-bars" style="grid-template-rows:repeat(${laneCount}, 26px);">${barsHtml}</div>
       </div>
     `;
   }
