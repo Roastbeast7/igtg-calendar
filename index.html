@@ -375,6 +375,7 @@
   <div class="rail" id="rail"></div>
 
   <div class="wrap" id="calendar"></div>
+  <div id="scrollSentinel" style="height:1px;"></div>
 
   <button class="jump-today" id="jumpToday">TODAY ↓</button>
 
@@ -705,6 +706,14 @@
     renderRail(currentMonths);
     renderCalendar(currentMonths);
     return true;
+  }
+
+  function extendFutureMonths(count){
+    const last = currentMonths[currentMonths.length - 1];
+    if (!last) return;
+    let y = last.y, m = last.m + count;
+    while (m > 11){ m -= 12; y++; }
+    ensureMonthsCover(y, m);
   }
 
   function renderRail(months){
@@ -1407,6 +1416,16 @@
 
     const todayMonthEl = document.getElementById(`month-${today.getFullYear()}-${today.getMonth()}`);
     if (todayMonthEl) todayMonthEl.scrollIntoView({behavior:'instant', block:'start'});
+
+    const sentinel = document.getElementById('scrollSentinel');
+    if (sentinel && 'IntersectionObserver' in window){
+      const observer = new IntersectionObserver((entries)=>{
+        entries.forEach(entry=>{
+          if (entry.isIntersecting) extendFutureMonths(6);
+        });
+      }, { rootMargin: '400px' });
+      observer.observe(sentinel);
+    }
   })();
 })();
 </script>
