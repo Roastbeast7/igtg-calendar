@@ -328,6 +328,22 @@
     text-transform:uppercase; color:var(--muted); margin-bottom:10px;
   }
 
+  .check-row{
+    display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:13px; color:var(--paper); font-weight:600;
+  }
+  .check-row input[type="checkbox"]{ width:16px; height:16px; accent-color:var(--yellow); }
+
+  .repeat-fields{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin:-6px 0 14px; padding:12px; background:var(--ink-black); border:2px solid var(--line); border-radius:6px;
+    font-size:13px; color:var(--muted);
+  }
+  .repeat-fields input[type="number"]{
+    width:56px; background:var(--panel-2); border:2px solid var(--line); color:var(--paper);
+    border-radius:3px; padding:6px 8px; font-family:'Rubik',sans-serif; font-size:13px; text-align:center;
+  }
+  .repeat-fields input[type="number"]:focus{ outline:none; border-color:var(--yellow); }
+
   .status{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-align:center; padding:30px 0; }
 
   .empty-hint{
@@ -537,6 +553,14 @@
       cur.setDate(cur.getDate() + 1);
     }
     return out;
+  }
+  function addDaysToKey(key, days){
+    const d = keyToDate(key);
+    d.setDate(d.getDate() + days);
+    return dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function addWeeks(key, weeks){
+    return addDaysToKey(key, weeks * 7);
   }
 
   // Accepts either the old single-event shape or the new array-of-events shape
@@ -842,7 +866,7 @@
   // removing it from any days in oldStartKey..oldEndKey that are no longer in range
   // (used when editing shrinks/moves a date range). Preserves other events already
   // present on shared days.
-  async function writeEventAcrossRange(eventObj, oldStartKey, oldEndKey, deferPersist){
+  async function writeEventAcrossRange(eventObj, oldStartKey, oldEndKey, deferPersist, deferRender){
     const newDates = enumerateDates(eventObj.startDate, eventObj.endDate);
     const oldDates = oldStartKey ? enumerateDates(oldStartKey, oldEndKey) : [];
     const touched = new Set([...oldDates, ...newDates]);
@@ -869,7 +893,7 @@
         delete eventIndex[dk];
       }
     }
-    renderCalendar(currentMonths);
+    if (!deferRender) renderCalendar(currentMonths);
     if (!deferPersist) await persistIndex();
   }
 
@@ -1018,6 +1042,15 @@
           <input type="date" id="endDateInput" value="${endDefault}">
         </div>
       </div>
+      ${!existing ? `
+      <label class="check-row">
+        <input type="checkbox" id="repeatCheck">
+        Repeats
+      </label>
+      <div class="repeat-fields" id="repeatFields" style="display:none;">
+        Every <input type="number" id="repeatWeeks" value="4" min="1" max="52"> week(s),
+        for <input type="number" id="repeatCount" value="4" min="2" max="26"> occurrences
+      </div>` : ''}
       <div class="field">
         <label>Category</label>
         <div class="cat-picker" id="catPicker">
@@ -1048,6 +1081,14 @@
     `;
     modalContent.querySelector('.modal-close').addEventListener('click', closeModal);
     modalContent.querySelector('#cancelBtn').addEventListener('click', ()=> renderModal(key, dayEventsSnapshot));
+
+    const repeatCheck = modalContent.querySelector('#repeatCheck');
+    const repeatFields = modalContent.querySelector('#repeatFields');
+    if (repeatCheck){
+      repeatCheck.addEventListener('change', ()=>{
+        repeatFields.style.display = repeatCheck.checked ? 'flex' : 'none';
+      });
+    }
 
     let pendingImage = source ? source.image : null;
     let selectedCategory = source ? (source.category || '') : '';
@@ -1115,11 +1156,30 @@
         return;
       }
 
+      const isRepeating = repeatCheck && repeatCheck.checked;
+      let repeatWeeksVal = 0, repeatCountVal = 0;
+      if (isRepeating){
+        repeatWeeksVal = parseInt(modalContent.querySelector('#repeatWeeks').value, 10) || 0;
+        repeatCountVal = parseInt(modalContent.querySelector('#repeatCount').value, 10) || 0;
+        if (repeatWeeksVal < 1 || repeatCountVal < 2){
+          formError.textContent = 'Enter a valid repeat interval and occurrence count.';
+          formError.style.display = 'block';
+          return;
+        }
+        if (repeatCountVal > 26){
+          formError.textContent = 'Please keep repeats to 26 occurrences or fewer at a time.';
+          formError.style.display = 'block';
+          return;
+        }
+      }
+
+      const seriesId = isRepeating ? genId() : null;
       const eventObj = {
         id: existing ? existing.id : genId(),
         title: title || 'Untitled event',
         note, image: pendingImage, category: selectedCategory,
-        startDate: startVal, endDate: endVal
+        startDate: startVal, endDate: endVal,
+        seriesId: existing ? (existing.seriesId || null) : seriesId
       };
 
       const saveBtn = modalContent.querySelector('#saveBtn');
@@ -1127,7 +1187,25 @@
       try{
         const oldStart = existing ? (existing.startDate || key) : null;
         const oldEnd = existing ? (existing.endDate || existing.startDate || key) : null;
-        await writeEventAcrossRange(eventObj, oldStart, oldEnd);
+
+        if (isRepeating){
+          const spanDays = enumerateDates(startVal, endVal).length - 1;
+          const lastOccStart = addWeeks(startVal, (repeatCountVal - 1) * repeatWeeksVal);
+          const lastOccEnd = addDaysToKey(lastOccStart, spanDays);
+          const [lastY, lastM] = lastOccEnd.split('-').map(Number);
+          ensureMonthsCover(lastY, lastM - 1);
+
+          for (let i = 0; i < repeatCountVal; i++){
+            const occStart = addWeeks(startVal, i * repeatWeeksVal);
+            const occEnd = addDaysToKey(occStart, spanDays);
+            const occObj = { ...eventObj, id: i===0 ? eventObj.id : genId(), startDate: occStart, endDate: occEnd };
+            await writeEventAcrossRange(occObj, null, null, true, true);
+          }
+          renderCalendar(currentMonths);
+          await persistIndex();
+        } else {
+          await writeEventAcrossRange(eventObj, oldStart, oldEnd);
+        }
         updateStats();
         runSearch();
 
