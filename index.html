@@ -227,13 +227,13 @@
 
   .markers{
     position:absolute; bottom:4px; right:4px; left:4px;
-    display:flex; gap:2px; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+    display:flex; gap:3px; align-items:center; justify-content:flex-end; flex-wrap:wrap;
   }
   .mdot{
-    width:7px; height:7px; border-radius:50%; border:1px solid #05060a; flex-shrink:0;
+    width:11px; height:11px; border-radius:50%; border:1.5px solid #05060a; flex-shrink:0;
   }
   .mmore{
-    font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--muted); line-height:1;
+    font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--muted); line-height:1;
   }
 
   .event-card{
@@ -596,7 +596,7 @@
   }
 
   function dotsHtml(events){
-    const cap = 4;
+    const cap = 3;
     const shown = events.slice(0, cap);
     let html = shown.map(e => `<span class="mdot" style="background:${getCategory(e.category).color};"></span>`).join('');
     if (events.length > cap) html += `<span class="mmore">+${events.length - cap}</span>`;
@@ -877,6 +877,7 @@
           ${isEditor ? `
           <div class="event-card-actions">
             <button class="btn btn-ghost" data-action="edit" data-id="${ev.id}">Edit</button>
+            <button class="btn btn-ghost" data-action="duplicate" data-id="${ev.id}">Duplicate</button>
             <button class="btn btn-danger" data-action="delete" data-id="${ev.id}">Delete</button>
           </div>
           <div class="note-text delete-error" data-error-for="${ev.id}" style="display:none; color:var(--danger); margin-top:8px; margin-bottom:0;"></div>` : ''}
@@ -901,6 +902,13 @@
         btn.addEventListener('click', ()=>{
           const ev = dayEvents.find(e => e.id === btn.dataset.id);
           if (ev) renderForm(key, ev, dayEvents);
+        });
+      });
+
+      modalContent.querySelectorAll('[data-action="duplicate"]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const ev = dayEvents.find(e => e.id === btn.dataset.id);
+          if (ev) renderForm(key, null, dayEvents, ev);
         });
       });
 
@@ -950,17 +958,18 @@
     }
   }
 
-  function renderForm(key, existing, dayEventsSnapshot){
+  function renderForm(key, existing, dayEventsSnapshot, duplicateFrom){
+    const source = existing || duplicateFrom || null;
     const pretty = formatPretty(key);
     const startDefault = existing ? (existing.startDate || key) : key;
     const endDefault = existing ? (existing.endDate || existing.startDate || key) : key;
     modalContent.innerHTML = `
       <button class="modal-close" aria-label="Close">&times;</button>
-      <h2>${existing ? 'Edit event' : 'New event'}</h2>
-      <div class="date-sub">${pretty}</div>
+      <h2>${existing ? 'Edit event' : (duplicateFrom ? 'Duplicate event' : 'New event')}</h2>
+      <div class="date-sub">${pretty}${duplicateFrom ? ` — copied from "${escapeHtml(duplicateFrom.title||'')}"` : ''}</div>
       <div class="field">
         <label for="titleInput">Title</label>
-        <input type="text" id="titleInput" placeholder="e.g. Tech Jacket Hero Release" value="${existing ? escapeHtml(existing.title||'') : ''}">
+        <input type="text" id="titleInput" placeholder="e.g. Tech Jacket Hero Release" value="${source ? escapeHtml(source.title||'') : ''}">
       </div>
       <div class="field" style="display:flex; gap:10px;">
         <div style="flex:1;">
@@ -984,11 +993,11 @@
       </div>
       <div class="field">
         <label for="noteInput">Note (optional)</label>
-        <textarea id="noteInput" rows="2" placeholder="Anything you want to remember">${existing ? escapeHtml(existing.note||'') : ''}</textarea>
+        <textarea id="noteInput" rows="2" placeholder="Anything you want to remember">${source ? escapeHtml(source.note||'') : ''}</textarea>
       </div>
       <div class="field">
         <label>Photo</label>
-        ${existing && existing.image ? `<img class="preview-img" id="livePreview" src="${existing.image}">` : `<img class="preview-img" id="livePreview" style="display:none;">`}
+        ${source && source.image ? `<img class="preview-img" id="livePreview" src="${source.image}">` : `<img class="preview-img" id="livePreview" style="display:none;">`}
         <div class="filedrop" id="dropZone">
           <input type="file" id="fileInput" accept="image/*">
           <span id="dropLabel">Click to choose a photo</span>
@@ -1003,8 +1012,8 @@
     modalContent.querySelector('.modal-close').addEventListener('click', closeModal);
     modalContent.querySelector('#cancelBtn').addEventListener('click', ()=> renderModal(key, dayEventsSnapshot));
 
-    let pendingImage = existing ? existing.image : null;
-    let selectedCategory = existing ? (existing.category || '') : '';
+    let pendingImage = source ? source.image : null;
+    let selectedCategory = source ? (source.category || '') : '';
     const dropZone = modalContent.querySelector('#dropZone');
     const fileInput = modalContent.querySelector('#fileInput');
     const livePreview = modalContent.querySelector('#livePreview');
