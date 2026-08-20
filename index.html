@@ -575,7 +575,8 @@
         image: e.image || null,
         category: e.category || '',
         startDate: e.startDate || dayKey,
-        endDate: e.endDate || e.startDate || dayKey
+        endDate: e.endDate || e.startDate || dayKey,
+        seriesId: e.seriesId || null
       }));
     }
     if (parsed && typeof parsed === 'object'){
@@ -586,7 +587,8 @@
         image: parsed.image || null,
         category: parsed.category || '',
         startDate: parsed.startDate || dayKey,
-        endDate: parsed.endDate || parsed.startDate || dayKey
+        endDate: parsed.endDate || parsed.startDate || dayKey,
+        seriesId: parsed.seriesId || null
       }];
     }
     return [];
@@ -595,7 +597,7 @@
   function lightweight(events){
     return events.map(e => ({
       id: e.id, title: e.title, note: e.note, category: e.category,
-      startDate: e.startDate, endDate: e.endDate,
+      startDate: e.startDate, endDate: e.endDate, seriesId: e.seriesId || null,
       bytes: JSON.stringify(e).length
     }));
   }
@@ -898,7 +900,7 @@
   }
 
   // Removes an event (identified by id) from every day in its stored range.
-  async function removeEventAcrossRange(eventObj, deferPersist){
+  async function removeEventAcrossRange(eventObj, deferPersist, deferRender){
     const dates = enumerateDates(eventObj.startDate || eventObj.id, eventObj.endDate || eventObj.startDate);
     for (const dk of dates){
       let current = [];
@@ -918,8 +920,18 @@
         delete eventIndex[dk];
       }
     }
-    renderCalendar(currentMonths);
+    if (!deferRender) renderCalendar(currentMonths);
     if (!deferPersist) await persistIndex();
+  }
+
+  // Returns every canonical (deduped) event sharing the given seriesId,
+  // scanning the in-memory index rather than re-fetching from storage.
+  function getSeriesEvents(seriesId){
+    const map = new Map();
+    Object.values(eventIndex).forEach(arr=>{
+      (arr || []).forEach(e => { if (e.seriesId === seriesId) map.set(e.id, e); });
+    });
+    return [...map.values()];
   }
 
   function renderModal(key, dayEvents){
@@ -936,10 +948,15 @@
           ${ev.image ? `<img class="preview-img" src="${ev.image}" alt="">` : ''}
           ${ev.note ? `<div class="note-text">${escapeHtml(ev.note)}</div>` : ''}
           ${isEditor ? `
-          <div class="event-card-actions">
+          <div class="event-card-actions" data-actions-for="${ev.id}">
             <button class="btn btn-ghost" data-action="edit" data-id="${ev.id}">Edit</button>
             <button class="btn btn-ghost" data-action="duplicate" data-id="${ev.id}">Duplicate</button>
-            <button class="btn btn-danger" data-action="delete" data-id="${ev.id}">Delete</button>
+            <button class="btn btn-danger" data-action="delete" data-id="${ev.id}" data-series="${ev.seriesId || ''}">Delete</button>
+          </div>
+          <div class="event-card-actions" data-series-choice-for="${ev.id}" style="display:none; margin-top:8px;">
+            <button class="btn btn-danger" data-action="delete-one" data-id="${ev.id}">Just this one</button>
+            <button class="btn btn-danger" data-action="delete-future" data-id="${ev.id}">This + future</button>
+            <button class="btn btn-ghost" data-action="delete-cancel" data-id="${ev.id}">Cancel</button>
           </div>
           <div class="note-text delete-error" data-error-for="${ev.id}" style="display:none; color:var(--danger); margin-top:8px; margin-bottom:0;"></div>` : ''}
         </div>
@@ -976,6 +993,20 @@
       modalContent.querySelectorAll('[data-action="delete"]').forEach(btn=>{
         let armed = false;
         btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          const seriesId = btn.dataset.series;
+
+          if (seriesId){
+            // Recurring event: swap to a choice row instead of a plain confirm.
+            const choiceRow = modalContent.querySelector(`[data-series-choice-for="${id}"]`);
+            const actionsRow = modalContent.querySelector(`[data-actions-for="${id}"]`);
+            if (choiceRow && actionsRow){
+              actionsRow.style.display = 'none';
+              choiceRow.style.display = 'flex';
+            }
+            return;
+          }
+
           if (!armed){
             armed = true;
             btn.textContent = 'Confirm?';
@@ -984,7 +1015,6 @@
           }
           btn.disabled = true;
           btn.textContent = 'Deleting…';
-          const id = btn.dataset.id;
           const ev = dayEvents.find(e => e.id === id);
           try{
             if (ev) await removeEventAcrossRange(ev);
@@ -1005,6 +1035,63 @@
             const errEl = modalContent.querySelector(`[data-error-for="${id}"]`);
             if (errEl){ errEl.textContent = 'Could not delete this event. Please try again.'; errEl.style.display = 'block'; }
           }
+        });
+      });
+
+      modalContent.querySelectorAll('[data-action="delete-cancel"]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const id = btn.dataset.id;
+          const choiceRow = modalContent.querySelector(`[data-series-choice-for="${id}"]`);
+          const actionsRow = modalContent.querySelector(`[data-actions-for="${id}"]`);
+          if (choiceRow && actionsRow){
+            choiceRow.style.display = 'none';
+            actionsRow.style.display = 'flex';
+          }
+        });
+      });
+
+      async function finishSeriesDelete(id, btn){
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = 'Deleting…';
+        try{
+          updateStats();
+          runSearch();
+          let fullRefreshed = [];
+          if (eventDates.has(key)){
+            const res = await window.storage.get('event:'+key, true);
+            if (res && res.value) fullRefreshed = normalizeDayEvents(JSON.parse(res.value), key);
+          }
+          renderModal(key, fullRefreshed);
+        }catch(err){
+          console.error('Delete failed', err);
+          btn.disabled = false;
+          btn.textContent = origText;
+          const errEl = modalContent.querySelector(`[data-error-for="${id}"]`);
+          if (errEl){ errEl.textContent = 'Could not delete. Please try again.'; errEl.style.display = 'block'; }
+        }
+      }
+
+      modalContent.querySelectorAll('[data-action="delete-one"]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          const ev = dayEvents.find(e => e.id === id);
+          if (ev) await removeEventAcrossRange(ev);
+          finishSeriesDelete(id, btn);
+        });
+      });
+
+      modalContent.querySelectorAll('[data-action="delete-future"]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const id = btn.dataset.id;
+          const ev = dayEvents.find(e => e.id === id);
+          if (!ev) return;
+          const seriesEvents = getSeriesEvents(ev.seriesId).filter(e => e.startDate >= ev.startDate);
+          for (let i = 0; i < seriesEvents.length; i++){
+            const isLast = i === seriesEvents.length - 1;
+            await removeEventAcrossRange(seriesEvents[i], !isLast, !isLast);
+          }
+          finishSeriesDelete(id, btn);
         });
       });
     }
